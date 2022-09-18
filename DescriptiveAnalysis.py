@@ -16,6 +16,9 @@ from pandas.tseries.offsets import DateOffset
 from tabulate import tabulate
 from Config import Config
 
+import warnings
+warnings.filterwarnings("ignore")
+
 parameter_config = Config("Parameter.json")
 
 year_shift = 5
@@ -80,6 +83,7 @@ class DescriptiveAnalysis:
         period_max = self.rets.index.max().strftime('%Y')
         period = f"{period_min}-{period_max}"
         
+        pooled_mean_flag = False
         if os.path.exists(self.rets_pooled_file):
             pooled_mean = pd.read_csv(self.rets_pooled_file, index_col=0)
             pooled_period = list(pooled_mean.index)
@@ -108,7 +112,9 @@ class DescriptiveAnalysis:
                         pooled_mean.loc[period, value] = fill_value
                     except:
                         break
+                    
             pooled_mean.to_csv(self.rets_pooled_file)
+            
         else:            
             pooled_mean = self.rets.mean()*252
             pooled_mean = pooled_mean.round(3)
@@ -120,11 +126,34 @@ class DescriptiveAnalysis:
             pooled_mean.columns = [period]
             pooled_mean = pooled_mean.transpose()
             pooled_mean.to_csv(self.rets_pooled_file)
-            
+        
+        if pooled_mean.shape[0] > 1:
+            pooled_mean['Sort_Col'] = pooled_mean.index.values
+            pooled_mean['Sort_Col'] = pooled_mean['Sort_Col'].str[:4]
+            pooled_mean['Sort_Col'] = pooled_mean['Sort_Col'].astype(int)
+            pooled_mean.sort_values(by='Sort_Col', ascending=False, inplace=True)
+            pooled_mean.drop('Sort_Col', axis=1, inplace=True)
+            pooled_mean = pooled_mean.transpose()
+            pooled_mean_flag = True
+        else:
+            pooled_mean_flag = False
+           
         self.pooled_mean = pooled_mean
+        self.pooled_mean_flag = pooled_mean_flag
 
     def return_analysis(self):
         self.rets_corr = self.rets.corr()
+        
+        rets_stat_full = self.rets.describe()
+        rets_stat_full = rets_stat_full.transpose()
+        stat_cols = ['count', 'mean', 'std']
+        adj_cols = {'count': 'Count', 'mean': 'Mean', 'std': 'Volatility'}
+        rets_stat = rets_stat_full[stat_cols]
+        rets_stat['mean'] = rets_stat['mean']*252
+        rets_stat['std'] = rets_stat['std']*np.sqrt(252)
+        rets_stat.sort_values(by='mean', ascending=False, inplace=True)
+        rets_stat.rename(adj_cols, axis=1, inplace=True)
+        self.rets_stat = rets_stat
         
     def quote_analysis(self):
         norm_quotes = self.quotes.copy()
@@ -132,17 +161,39 @@ class DescriptiveAnalysis:
             values = values.dropna()
             initial_value = values.iloc[0]
             norm_quotes[col] = norm_quotes[col] / initial_value
-        norm_quotes = norm_quotes * 1000
+        norm_quotes = norm_quotes*1000
         
     def visualization(self):
         df_tick_mapping = pd.DataFrame(self.tick_mapping.values())
         df_tick_mapping.index = self.tick_mapping.keys()
         df_tick_mapping.columns = ['Name']
         print('\n')
-        print(tabulate(df_tick_mapping, headers = 'keys', tablefmt = 'simple'))       
+        print(tabulate(
+                df_tick_mapping, 
+                headers = self.plot_settings['headers'],
+                tablefmt = self.plot_settings['tablefmt']
+                    ))
+        
+        print('\n')
+        print(
+            tabulate(
+                self.rets_stat, 
+                headers = self.plot_settings['headers'],
+                tablefmt = self.plot_settings['tablefmt'],
+                floatfmt = self.plot_settings['floatfmt']
+                    ))
+        
+        if self.pooled_mean_flag:
+            print('\n')
+            print(
+                tabulate(
+                    self.pooled_mean, 
+                    headers = self.plot_settings['headers'],
+                    tablefmt = self.plot_settings['tablefmt'],
+                    floatfmt = self.plot_settings['floatfmt']
+                        ))
         
         sn.heatmap(self.rets_corr, annot=True)
-        
         hist_rets = self.rets.rename(self.tick_mapping, axis=1)
         hist_rets.hist(bins=self.plot_settings['bins'], figsize=tuple(self.plot_settings['figsize']))
 
