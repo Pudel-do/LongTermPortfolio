@@ -13,14 +13,16 @@ import matplotlib.pyplot as plt
 import os
 import json
 from pandas.tseries.offsets import DateOffset
+from tabulate import tabulate
+from Config import ParameterConfig
+
+parameters = ParameterConfig.config['Parameters']
 
 year_shift = 7
 end = pd.Timestamp.today()
 start = end - DateOffset(years=year_shift)
 analysis_ticks = ['IWDA.L', 'EWG2.SG', 'LIT', 
-                  'SUES.L', 'EMIM.L'
-                  ]
-min_days_frac = 0.8
+                  'SUES.L', 'EMIM.L']
 
 class DescriptiveAnalysis:
     def __init__(self, start, end, ticks):
@@ -29,9 +31,11 @@ class DescriptiveAnalysis:
         self.ticks = analysis_ticks
         self.ticks_file = 'TickerMapping.json'
         self.rets_pooled_file = 'PooledReturns.csv'
+        self.period = f"{start.strftime('%Y-%m')} - {end.strftime('%Y-%m')}"
 
     def get_data(self):
-        print('--- Start downloading data ---')
+        print('\n')
+        print(f'--- Start downloading data---')
         raw_data = yf.download(self.ticks, self.start, self.end)
         quotes = raw_data['Adj Close']
         rets = np.log(quotes / quotes.shift(1))
@@ -65,13 +69,14 @@ class DescriptiveAnalysis:
         n_total_days = len(data)
         n_days = data.count()
         days_frac = n_days / n_total_days
-        days_mask = days_frac < min_days_frac
+        days_mask = days_frac < parameters['min_share_obs']
         days_mask = days_mask.where(days_mask==True)
         days_mask = days_mask.dropna()
         invalid_ticks = list(days_mask.index)
         period_min = data.index.min().strftime('%Y')
         period_max = data.index.max().strftime('%Y')
         period = f"{period_min}-{period_max}"
+        
         if os.path.exists(file_name):
             pooled_mean = pd.read_csv(file_name, index_col=0)
             pooled_period = list(pooled_mean.index)
@@ -116,22 +121,44 @@ class DescriptiveAnalysis:
         return pooled_mean
 
     def return_analysis(self):
-        rets_corr = self.rets.corr()
-        rets_plot = sn.heatmap(rets_corr, annot=True)
-        test = DescriptiveAnalysis.pool_mean_data(self.rets, 
-                                                  self.ticks,
-                                                  self.rets_pooled_file)
+        pooled_mean = DescriptiveAnalysis.pool_mean_data(self.rets, self.ticks, self.rets_pooled_file)
+        self.pooled_mean = pooled_mean
+        self.rets_corr = self.rets.corr()
         
-        print('Test')
+    def quote_analysis(self):
+        norm_quotes = self.quotes.copy()
+        for col, values in norm_quotes.items():
+            values = values.dropna()
+            initial_value = values.iloc[0]
+            norm_quotes[col] = norm_quotes[col] / initial_value
+        norm_quotes = norm_quotes * 1000
+        
+    def visualization(self):
+        df_tick_mapping = pd.DataFrame(self.tick_mapping.values())
+        df_tick_mapping.index = self.tick_mapping.keys()
+        df_tick_mapping.columns = ['Name']
+        print('\n')
+        print(tabulate(df_tick_mapping, headers = 'keys', tablefmt = 'simple'))       
+        
+        sn.heatmap(self.rets_corr, annot=True)
+        
+        rets = self.rets
+        rets.rename(mapper=self.tick_mapping, axis=1, inplace=True)        
+        self.rets.hist(bins=50, figsize=(10,8))
+        
 
-
-    def quote_plot(self):
-        norm_quotes = self.quotes / self.quotes.iloc[0,:]
         
         
 desc_analysis = DescriptiveAnalysis(start, end, analysis_ticks)
+print('\n')
+print(40*'=')
+print(f'Analysis Period: {desc_analysis.period}')
+print(40*'=')
+
 desc_analysis.get_data()
 desc_analysis.ticker_mapping()
 desc_analysis.return_analysis()
-desc_analysis.quote_plot()
+desc_analysis.quote_analysis()
+desc_analysis.visualization()
+
          
