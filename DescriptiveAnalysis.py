@@ -14,24 +14,27 @@ import os
 import json
 from pandas.tseries.offsets import DateOffset
 from tabulate import tabulate
-from Config import ParameterConfig
+from Config import Config
 
-parameters = ParameterConfig.config['Parameters']
+parameter_config = Config("Parameter.json")
 
-year_shift = 7
+year_shift = 5
 end = pd.Timestamp.today()
 start = end - DateOffset(years=year_shift)
-analysis_ticks = ['IWDA.L', 'EWG2.SG', 'LIT', 
-                  'SUES.L', 'EMIM.L']
+analysis_ticks = ['IWDA.L', 'EWG2.SG', 'LIT']
+
 
 class DescriptiveAnalysis:
-    def __init__(self, start, end, ticks):
+    def __init__(self, start, end, ticks, parameter_config):
         self.start = start
         self.end = end
         self.ticks = analysis_ticks
         self.ticks_file = 'TickerMapping.json'
         self.rets_pooled_file = 'PooledReturns.csv'
         self.period = f"{start.strftime('%Y-%m')} - {end.strftime('%Y-%m')}"
+        self.plot_settings = parameter_config.config['Plot_Settings']
+        self.parameters = parameter_config.config['Parameters']
+        self.flags = parameter_config.config['Flags']
 
     def get_data(self):
         print('\n')
@@ -65,24 +68,24 @@ class DescriptiveAnalysis:
         print('--- Dowloading data completed ---')
         self.tick_mapping = tick_mapping
         
-    def pool_mean_data(data, ticks, file_name):
-        n_total_days = len(data)
-        n_days = data.count()
+    def pool_mean_data(self):
+        n_total_days = len(self.rets)
+        n_days = self.rets.count()
         days_frac = n_days / n_total_days
-        days_mask = days_frac < parameters['min_share_obs']
+        days_mask = days_frac < self.parameters['min_share_obs']
         days_mask = days_mask.where(days_mask==True)
         days_mask = days_mask.dropna()
         invalid_ticks = list(days_mask.index)
-        period_min = data.index.min().strftime('%Y')
-        period_max = data.index.max().strftime('%Y')
+        period_min = self.rets.index.min().strftime('%Y')
+        period_max = self.rets.index.max().strftime('%Y')
         period = f"{period_min}-{period_max}"
         
-        if os.path.exists(file_name):
-            pooled_mean = pd.read_csv(file_name, index_col=0)
+        if os.path.exists(self.rets_pooled_file):
+            pooled_mean = pd.read_csv(self.rets_pooled_file, index_col=0)
             pooled_period = list(pooled_mean.index)
             pooled_ticks = list(pooled_mean.columns)
-            complement_ticks = list(set(ticks)-set(pooled_ticks))
-            mean = data.mean()*252
+            complement_ticks = list(set(self.ticks)-set(pooled_ticks))
+            mean = self.rets.mean()*252
             mean = mean.round(3)
             for index, value in mean.items():
                 if index in invalid_ticks:
@@ -105,9 +108,9 @@ class DescriptiveAnalysis:
                         pooled_mean.loc[period, value] = fill_value
                     except:
                         break
-            pooled_mean.to_csv(file_name)
+            pooled_mean.to_csv(self.rets_pooled_file)
         else:            
-            pooled_mean = data.mean()*252
+            pooled_mean = self.rets.mean()*252
             pooled_mean = pooled_mean.round(3)
             for index, value in pooled_mean.items():
                 if index in invalid_ticks:
@@ -116,13 +119,11 @@ class DescriptiveAnalysis:
             pooled_mean = pd.DataFrame(pooled_mean)
             pooled_mean.columns = [period]
             pooled_mean = pooled_mean.transpose()
-            pooled_mean.to_csv(file_name)
+            pooled_mean.to_csv(self.rets_pooled_file)
             
-        return pooled_mean
+        self.pooled_mean = pooled_mean
 
     def return_analysis(self):
-        pooled_mean = DescriptiveAnalysis.pool_mean_data(self.rets, self.ticks, self.rets_pooled_file)
-        self.pooled_mean = pooled_mean
         self.rets_corr = self.rets.corr()
         
     def quote_analysis(self):
@@ -142,14 +143,15 @@ class DescriptiveAnalysis:
         
         sn.heatmap(self.rets_corr, annot=True)
         
-        rets = self.rets
-        rets.rename(mapper=self.tick_mapping, axis=1, inplace=True)        
-        self.rets.hist(bins=50, figsize=(10,8))
-        
+        hist_rets = self.rets.rename(self.tick_mapping, axis=1)
+        hist_rets.hist(bins=self.plot_settings['bins'], figsize=tuple(self.plot_settings['figsize']))
 
-        
-        
-desc_analysis = DescriptiveAnalysis(start, end, analysis_ticks)
+          
+desc_analysis = DescriptiveAnalysis(
+    start, end, analysis_ticks, 
+    parameter_config
+    )
+
 print('\n')
 print(40*'=')
 print(f'Analysis Period: {desc_analysis.period}')
@@ -157,8 +159,7 @@ print(40*'=')
 
 desc_analysis.get_data()
 desc_analysis.ticker_mapping()
+desc_analysis.pool_mean_data()
 desc_analysis.return_analysis()
 desc_analysis.quote_analysis()
 desc_analysis.visualization()
-
-         
