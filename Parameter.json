@@ -1,0 +1,16 @@
+{
+  "Flags":
+    {
+        "plot_quotes": true
+    },
+  "Parameters": 
+    {
+        "min_share_obs": 0.9,
+        "mov_avg_days": 200
+    },
+  "Plot_Settings":
+    {
+        "figsize": [20,10],
+        "title_size": 25
+    }
+}
