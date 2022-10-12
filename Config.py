@@ -11,5 +11,6 @@ class Config:
             config = json.load(conf)
         return config
     
-ParameterConfig = Config("Parameter.json")
+
+
 

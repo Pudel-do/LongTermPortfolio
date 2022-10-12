@@ -6,11 +6,18 @@
   "Parameters": 
     {
         "min_share_obs": 0.9,
-        "mov_avg_days": 200
+        "moving_avg_days": [252, 42]
     },
   "Plot_Settings":
     {
-        "figsize": [20,10],
-        "title_size": 25
+        "figsize": [18,10],
+        "title_size": 25,
+        "label_size": 18,
+        "main_line": 1.5,
+        "sub_line": 1,
+        "bins": 100,
+        "tablefmt": "simple",
+        "headers": "keys",
+        "floatfmt": ".2f"
     }
 }

@@ -38,12 +38,21 @@ class DescriptiveAnalysis:
         self.plot_settings = parameter_config.config['Plot_Settings']
         self.parameters = parameter_config.config['Parameters']
         self.flags = parameter_config.config['Flags']
+        self.path = os.getcwd()
 
     def get_data(self):
         print('\n')
         print(f'--- Start downloading data---')
-        raw_data = yf.download(self.ticks, self.start, self.end)
-        quotes = raw_data['Adj Close']
+        quotes_index = pd.date_range(self.start, self.end, freq='B')
+        quotes_index = quotes_index.strftime('%Y-%m-%d')
+        quotes = pd.DataFrame(index=quotes_index)
+        for tick in self.ticks:
+            data = yf.download(tick, start=self.start, end=self.end)
+            data = pd.DataFrame(data['Adj Close'])
+            data.index = data.index.strftime('%Y-%m-%d')
+            data.columns = [tick]
+            quotes = quotes.join(data)
+        quotes.index = pd.to_datetime(quotes.index)
         rets = np.log(quotes / quotes.shift(1))
         rets = rets.iloc[1:, :]
         self.rets = rets
@@ -127,7 +136,8 @@ class DescriptiveAnalysis:
             pooled_mean = pooled_mean.transpose()
             pooled_mean.to_csv(self.rets_pooled_file)
         
-        if pooled_mean.shape[0] > 1:
+        index_flag = pooled_mean.shape[0] > 1
+        if index_flag:
             pooled_mean['Sort_Col'] = pooled_mean.index.values
             pooled_mean['Sort_Col'] = pooled_mean['Sort_Col'].str[:4]
             pooled_mean['Sort_Col'] = pooled_mean['Sort_Col'].astype(int)
@@ -163,24 +173,53 @@ class DescriptiveAnalysis:
             norm_quotes[col] = norm_quotes[col] / initial_value
         norm_quotes = norm_quotes*1000
         
+        moving_avg_dict = {}
+        for col, values in self.quotes.items():
+            values = values.dropna()
+            ma_values = pd.DataFrame(values)
+            for ma_day in self.parameters['moving_avg_days']:
+                ma_values[f'MA{ma_day}'] = values.rolling(ma_day).mean()
+            moving_avg_dict[col] = ma_values
+        self.moving_avg_dict = moving_avg_dict       
+
     def visualization(self):
+        sn.heatmap(self.rets_corr, annot=True)
+        plt.savefig(r'C:\Users\Matthias Pudel\Desktop\Eigene Dateien\corr.png')
+        hist_rets = self.rets.rename(self.tick_mapping, axis=1)
+        hist_rets.hist(bins=self.plot_settings['bins'], figsize=tuple(self.plot_settings['figsize']))
+        plt.savefig(r'C:\Users\Matthias Pudel\Desktop\Eigene Dateien\hist.png')
+
+        if self.flags['plot_quotes']:
+            for key, df in self.moving_avg_dict.items():
+                label_values = list(df.columns.values)
+                if len(self.parameters['moving_avg_days'])>1:
+                    plt.figure(figsize=tuple(self.plot_settings['figsize']))
+                    plt.plot(df.iloc[:, 0], lw=1.5, label='Quote')
+                    plt.plot(df.iloc[:, 1], lw=1, label=df.columns[1])
+                    plt.plot(df.iloc[:, 2], lw=1, label=df.columns[2])
+                    plt.legend(loc=0)
+                    plt.xlabel('Date', fontsize=self.plot_settings['label_size'])
+                    plt.ylabel('Quote', fontsize=self.plot_settings['label_size'])
+                    plt.title(self.tick_mapping.get(key), fontsize=self.plot_settings['title_size'])
+                    plt.show()
+        
         df_tick_mapping = pd.DataFrame(self.tick_mapping.values())
         df_tick_mapping.index = self.tick_mapping.keys()
         df_tick_mapping.columns = ['Name']
         print('\n')
         print(tabulate(
                 df_tick_mapping, 
-                headers = self.plot_settings['headers'],
-                tablefmt = self.plot_settings['tablefmt']
+                headers=self.plot_settings['headers'],
+                tablefmt=self.plot_settings['tablefmt']
                     ))
         
         print('\n')
         print(
             tabulate(
                 self.rets_stat, 
-                headers = self.plot_settings['headers'],
-                tablefmt = self.plot_settings['tablefmt'],
-                floatfmt = self.plot_settings['floatfmt']
+                headers=self.plot_settings['headers'],
+                tablefmt=self.plot_settings['tablefmt'],
+                floatfmt=self.plot_settings['floatfmt']
                     ))
         
         if self.pooled_mean_flag:
@@ -188,15 +227,10 @@ class DescriptiveAnalysis:
             print(
                 tabulate(
                     self.pooled_mean, 
-                    headers = self.plot_settings['headers'],
-                    tablefmt = self.plot_settings['tablefmt'],
-                    floatfmt = self.plot_settings['floatfmt']
+                    headers=self.plot_settings['headers'],
+                    tablefmt=self.plot_settings['tablefmt'],
+                    floatfmt=self.plot_settings['floatfmt']
                         ))
-        
-        sn.heatmap(self.rets_corr, annot=True)
-        hist_rets = self.rets.rename(self.tick_mapping, axis=1)
-        hist_rets.hist(bins=self.plot_settings['bins'], figsize=tuple(self.plot_settings['figsize']))
-
           
 desc_analysis = DescriptiveAnalysis(
     start, end, analysis_ticks, 
