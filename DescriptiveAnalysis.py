@@ -13,33 +13,39 @@ import matplotlib.pyplot as plt
 import os
 import json
 from pandas.tseries.offsets import DateOffset
-from tabulate import tabulate
-from Config import Config
-
 import warnings
 warnings.filterwarnings("ignore")
-
-parameter_config = Config("Parameter.json")
-
-year_shift = 5
-end = pd.Timestamp.today()
-start = end - DateOffset(years=year_shift)
-analysis_ticks = ['IWDA.L', 'EWG2.SG', 'LIT']
-
+from tabulate import tabulate
+from Config import Config
 
 class DescriptiveAnalysis:
     def __init__(self, start, end, ticks, parameter_config):
         self.start = start
+        self.start_year = start.year
         self.end = end
-        self.ticks = analysis_ticks
-        self.ticks_file = 'TickerMapping.json'
-        self.rets_pooled_file = 'PooledReturns.csv'
+        self.end_year = end.year
+        self.ticks = ticks
         self.period = f"{start.strftime('%Y-%m')} - {end.strftime('%Y-%m')}"
         self.plot_settings = parameter_config.config['Plot_Settings']
         self.parameters = parameter_config.config['Parameters']
         self.flags = parameter_config.config['Flags']
-        self.path = os.getcwd()
+        self.main_path = os.getcwd()
+        self.plot_path = 'Plots_Analysis'
+        self.data_path = 'Data_Analysis'
+    def remove_data(self):
+        if self.flags['remove_analysis_files']:
+            if os.path.exists(os.path.join(self.main_path, self.data_path)):
+                directory = os.path.join(self.main_path, self.data_path)
+                filelist = [file for file in os.listdir(directory)]
+                for file in filelist:
+                    os.remove(os.path.join(directory, file))
 
+        if self.flags['remove_analysis_plots']:
+            if os.path.exists(os.path.join(self.main_path, self.plot_path)):
+                directory = os.path.join(self.main_path, self.plot_path)
+                filelist = [file for file in os.listdir(directory)]
+                for file in filelist:
+                    os.remove(os.path.join(directory, file))
     def get_data(self):
         print('\n')
         print(f'--- Start downloading data---')
@@ -59,8 +65,9 @@ class DescriptiveAnalysis:
         self.quotes = quotes
         
     def ticker_mapping(self):
-        if os.path.exists(self.ticks_file):
-            with open(self.ticks_file, 'r') as fp:
+        file_name = 'TickerMapping.json'
+        if os.path.exists(file_name):
+            with open(file_name, 'r') as fp:
                 tick_mapping = json.load(fp)
             keys = list(tick_mapping.keys())
             complement_ticks = list(set(self.ticks)-set(keys))
@@ -68,19 +75,21 @@ class DescriptiveAnalysis:
                 for tick in complement_ticks:
                     name = yf.Ticker(tick).info['longName']
                     tick_mapping[tick] = name
-                    with open(self.ticks_file, 'w') as fp:
+                    with open(file_name, 'w') as fp:
                         json.dump(tick_mapping, fp)
         else:
             tick_mapping = {}
             for tick in self.ticks:
                 name = yf.Ticker(tick).info['longName']
                 tick_mapping[tick] = name
-            with open(self.ticks_file, 'w') as fp:
+            with open(file_name, 'w') as fp:
                 json.dump(tick_mapping, fp)
         print('--- Dowloading data completed ---')
+        self.ticks_file = file_name
         self.tick_mapping = tick_mapping
         
     def pool_mean_data(self):
+        rets_pooled_file = 'PooledReturns.csv'
         n_total_days = len(self.rets)
         n_days = self.rets.count()
         days_frac = n_days / n_total_days
@@ -91,10 +100,10 @@ class DescriptiveAnalysis:
         period_min = self.rets.index.min().strftime('%Y')
         period_max = self.rets.index.max().strftime('%Y')
         period = f"{period_min}-{period_max}"
-        
+
         pooled_mean_flag = False
-        if os.path.exists(self.rets_pooled_file):
-            pooled_mean = pd.read_csv(self.rets_pooled_file, index_col=0)
+        if os.path.exists(os.path.join(self.data_path, rets_pooled_file)):
+            pooled_mean = pd.read_csv(os.path.join(self.data_path, rets_pooled_file), index_col=0)
             pooled_period = list(pooled_mean.index)
             pooled_ticks = list(pooled_mean.columns)
             complement_ticks = list(set(self.ticks)-set(pooled_ticks))
@@ -122,9 +131,12 @@ class DescriptiveAnalysis:
                     except:
                         break
                     
-            pooled_mean.to_csv(self.rets_pooled_file)
+            pooled_mean.to_csv(os.path.join(self.data_path, rets_pooled_file))
             
-        else:            
+        else:
+            if not os.path.exists(self.data_path):
+                os.makedirs(self.data_path)
+
             pooled_mean = self.rets.mean()*252
             pooled_mean = pooled_mean.round(3)
             for index, value in pooled_mean.items():
@@ -134,7 +146,7 @@ class DescriptiveAnalysis:
             pooled_mean = pd.DataFrame(pooled_mean)
             pooled_mean.columns = [period]
             pooled_mean = pooled_mean.transpose()
-            pooled_mean.to_csv(self.rets_pooled_file)
+            pooled_mean.to_csv(os.path.join(self.data_path, rets_pooled_file))
         
         index_flag = pooled_mean.shape[0] > 1
         if index_flag:
@@ -149,6 +161,7 @@ class DescriptiveAnalysis:
             pooled_mean_flag = False
            
         self.pooled_mean = pooled_mean
+        self.rets_pooled_file = rets_pooled_file
         self.pooled_mean_flag = pooled_mean_flag
 
     def return_analysis(self):
@@ -183,25 +196,41 @@ class DescriptiveAnalysis:
         self.moving_avg_dict = moving_avg_dict       
 
     def visualization(self):
+        if not os.path.exists(self.plot_path):
+            os.makedirs(self.plot_path)
+
         sn.heatmap(self.rets_corr, annot=True)
-        plt.savefig(r'C:\Users\Matthias Pudel\Desktop\Eigene Dateien\corr.png')
+        file_name = f'Correlation_{self.start_year}_{self.end_year}'
+        plt.savefig(os.path.join(self.plot_path, file_name))
+
         hist_rets = self.rets.rename(self.tick_mapping, axis=1)
         hist_rets.hist(bins=self.plot_settings['bins'], figsize=tuple(self.plot_settings['figsize']))
-        plt.savefig(r'C:\Users\Matthias Pudel\Desktop\Eigene Dateien\hist.png')
+        file_name = f'Histogram_{self.start_year}_{self.end_year}'
+        plt.savefig(os.path.join(self.plot_path, file_name))
 
-        if self.flags['plot_quotes']:
-            for key, df in self.moving_avg_dict.items():
-                label_values = list(df.columns.values)
-                if len(self.parameters['moving_avg_days'])>1:
-                    plt.figure(figsize=tuple(self.plot_settings['figsize']))
-                    plt.plot(df.iloc[:, 0], lw=1.5, label='Quote')
-                    plt.plot(df.iloc[:, 1], lw=1, label=df.columns[1])
-                    plt.plot(df.iloc[:, 2], lw=1, label=df.columns[2])
-                    plt.legend(loc=0)
-                    plt.xlabel('Date', fontsize=self.plot_settings['label_size'])
-                    plt.ylabel('Quote', fontsize=self.plot_settings['label_size'])
-                    plt.title(self.tick_mapping.get(key), fontsize=self.plot_settings['title_size'])
-                    plt.show()
+        for key, df in self.moving_avg_dict.items():
+            file_name = self.tick_mapping[key]
+            if len(self.parameters['moving_avg_days'])>1:
+                plt.figure(figsize=tuple(self.plot_settings['figsize']))
+                plt.plot(df.iloc[:, 0], lw=self.plot_settings['main_line'], label='Quote')
+                plt.plot(df.iloc[:, 1], lw=self.plot_settings['sub_line'], label=df.columns[1])
+                plt.plot(df.iloc[:, 2], lw=self.plot_settings['sub_line'], label=df.columns[2])
+                plt.legend(loc=0)
+                plt.grid(True)
+                plt.xlabel('Date', fontsize=self.plot_settings['label_size'])
+                plt.ylabel('Quote', fontsize=self.plot_settings['label_size'])
+                plt.title(self.tick_mapping.get(key), fontsize=self.plot_settings['title_size'])
+                plt.savefig(os.path.join(self.plot_path, file_name))
+            else:
+                plt.figure(figsize=tuple(self.plot_settings['figsize']))
+                plt.plot(df.iloc[:, 0], lw=self.plot_settings['main_line'], label='Quote')
+                plt.plot(df.iloc[:, 1], lw=self.plot_settings['sub_line'], label=df.columns[1])
+                plt.legend(loc=0)
+                plt.grid(True)
+                plt.xlabel('Date', fontsize=self.plot_settings['label_size'])
+                plt.ylabel('Quote', fontsize=self.plot_settings['label_size'])
+                plt.title(self.tick_mapping.get(key), fontsize=self.plot_settings['title_size'])
+                plt.savefig(os.path.join(self.plot_path, file_name))
         
         df_tick_mapping = pd.DataFrame(self.tick_mapping.values())
         df_tick_mapping.index = self.tick_mapping.keys()
@@ -216,7 +245,7 @@ class DescriptiveAnalysis:
         print('\n')
         print(
             tabulate(
-                self.rets_stat, 
+                self.rets_stat.rename(self.tick_mapping),
                 headers=self.plot_settings['headers'],
                 tablefmt=self.plot_settings['tablefmt'],
                 floatfmt=self.plot_settings['floatfmt']
@@ -226,25 +255,8 @@ class DescriptiveAnalysis:
             print('\n')
             print(
                 tabulate(
-                    self.pooled_mean, 
+                    self.pooled_mean.rename(self.tick_mapping),
                     headers=self.plot_settings['headers'],
                     tablefmt=self.plot_settings['tablefmt'],
                     floatfmt=self.plot_settings['floatfmt']
                         ))
-          
-desc_analysis = DescriptiveAnalysis(
-    start, end, analysis_ticks, 
-    parameter_config
-    )
-
-print('\n')
-print(40*'=')
-print(f'Analysis Period: {desc_analysis.period}')
-print(40*'=')
-
-desc_analysis.get_data()
-desc_analysis.ticker_mapping()
-desc_analysis.pool_mean_data()
-desc_analysis.return_analysis()
-desc_analysis.quote_analysis()
-desc_analysis.visualization()

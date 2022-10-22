@@ -1,7 +1,8 @@
 {
   "Flags":
     {
-        "plot_quotes": true
+        "remove_analysis_files": false,
+        "remove_analysis_plots": true
     },
   "Parameters": 
     {
@@ -13,7 +14,7 @@
         "figsize": [18,10],
         "title_size": 25,
         "label_size": 18,
-        "main_line": 1.5,
+        "main_line": 2,
         "sub_line": 1,
         "bins": 100,
         "tablefmt": "simple",
