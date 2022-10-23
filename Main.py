@@ -23,6 +23,8 @@ analysis_ticks = ['IWDA.L', 'LIT']
 port_end = pd.Timestamp('2022-01-10')
 port_start = pd.Timestamp('2020-01-01')
 port_ticks = ['IWDA.L', 'LIT']
+custom_weights = [0.2, 0.8]
+saving_rate = 300
 
 if parameter_config.config['Flags']['use_desc_analysis']:
     desc_analysis = DescriptiveAnalysis(start, end, analysis_ticks, parameter_config)
@@ -39,6 +41,7 @@ else:
     with open('DescriptiveAnalysis.pkl', 'rb') as inp:
         desc_analysis = pickle.load(inp)
 
-port_analysis = PortfolioAnalysis(port_start, port_end, port_ticks, parameter_config)
+port_analysis = PortfolioAnalysis(port_start, port_end, port_ticks, custom_weights, saving_rate, parameter_config)
 port_analysis.get_returns()
 port_analysis.get_opt_weights()
+port_analysis.port_construction()

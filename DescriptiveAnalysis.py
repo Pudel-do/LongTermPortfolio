@@ -245,6 +245,7 @@ class DescriptiveAnalysis:
 
         file_name = f'NormalizedQuotes{self.start_year}_{self.end_year}'
         plt.figure(figsize=tuple(self.plot_settings['figsize']))
+        self.norm_quotes.rename(self.tick_mapping, inplace=True, axis=1)
         for name, values in self.norm_quotes.iteritems():
             values.dropna(inplace=True)
             plt.plot(values, lw=self.plot_settings['main_line'], label=name)
@@ -252,7 +253,7 @@ class DescriptiveAnalysis:
         plt.grid(True)
         plt.xlabel('Date', fontsize=self.plot_settings['label_size'])
         plt.ylabel('Normed Quote', fontsize=self.plot_settings['label_size'])
-        plt.title(f'Normed quotes for period {self.period}', fontsize=self.plot_settings['title_size'])
+        plt.title(f'Normed Quotes', fontsize=self.plot_settings['title_size'])
         plt.savefig(os.path.join(self.plot_path, file_name))
         
         df_tick_mapping = pd.DataFrame(self.tick_mapping.values())
