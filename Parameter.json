@@ -1,6 +1,6 @@
 {
   "Flags":
-    {
+    {   "use_desc_analysis": false,
         "remove_analysis_files": false,
         "remove_analysis_plots": true
     },

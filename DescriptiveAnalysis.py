@@ -12,11 +12,9 @@ import seaborn as sn
 import matplotlib.pyplot as plt
 import os
 import json
-from pandas.tseries.offsets import DateOffset
 import warnings
 warnings.filterwarnings("ignore")
 from tabulate import tabulate
-from Config import Config
 
 class DescriptiveAnalysis:
     def __init__(self, start, end, ticks, parameter_config):
@@ -48,12 +46,11 @@ class DescriptiveAnalysis:
                     os.remove(os.path.join(directory, file))
     def get_data(self):
         print('\n')
-        print(f'--- Start downloading data---')
         quotes_index = pd.date_range(self.start, self.end, freq='B')
         quotes_index = quotes_index.strftime('%Y-%m-%d')
         quotes = pd.DataFrame(index=quotes_index)
         for tick in self.ticks:
-            data = yf.download(tick, start=self.start, end=self.end)
+            data = yf.download(tick, start=self.start, end=self.end, progress=False)
             data = pd.DataFrame(data['Adj Close'])
             data.index = data.index.strftime('%Y-%m-%d')
             data.columns = [tick]
@@ -84,7 +81,6 @@ class DescriptiveAnalysis:
                 tick_mapping[tick] = name
             with open(file_name, 'w') as fp:
                 json.dump(tick_mapping, fp)
-        print('--- Dowloading data completed ---')
         self.ticks_file = file_name
         self.tick_mapping = tick_mapping
         
@@ -185,6 +181,7 @@ class DescriptiveAnalysis:
             initial_value = values.iloc[0]
             norm_quotes[col] = norm_quotes[col] / initial_value
         norm_quotes = norm_quotes*1000
+        self.norm_quotes = norm_quotes
         
         moving_avg_dict = {}
         for col, values in self.quotes.items():
