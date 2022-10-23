@@ -190,9 +190,23 @@ class DescriptiveAnalysis:
             for ma_day in self.parameters['moving_avg_days']:
                 ma_values[f'MA{ma_day}'] = values.rolling(ma_day).mean()
             moving_avg_dict[col] = ma_values
-        self.moving_avg_dict = moving_avg_dict       
+        self.moving_avg_dict = moving_avg_dict
+    def print_table(self, df):
+        try:
+            df.rename(self.tick_mapping, inplace=True)
+        except:
+            pass
+        print('\n')
+        print(tabulate(df,
+                headers=self.plot_settings['headers'],
+                tablefmt=self.plot_settings['tablefmt'],
+                floatfmt=self.plot_settings['floatfmt']
+                    ))
 
     def visualization(self):
+        print(40 * '=')
+        print(f'Analysis Period: {self.period}')
+        print(40 * '=')
         if not os.path.exists(self.plot_path):
             os.makedirs(self.plot_path)
 
@@ -228,32 +242,24 @@ class DescriptiveAnalysis:
                 plt.ylabel('Quote', fontsize=self.plot_settings['label_size'])
                 plt.title(self.tick_mapping.get(key), fontsize=self.plot_settings['title_size'])
                 plt.savefig(os.path.join(self.plot_path, file_name))
+
+        file_name = f'NormalizedQuotes{self.start_year}_{self.end_year}'
+        plt.figure(figsize=tuple(self.plot_settings['figsize']))
+        for name, values in self.norm_quotes.iteritems():
+            values.dropna(inplace=True)
+            plt.plot(values, lw=self.plot_settings['main_line'], label=name)
+        plt.legend(loc=0)
+        plt.grid(True)
+        plt.xlabel('Date', fontsize=self.plot_settings['label_size'])
+        plt.ylabel('Normed Quote', fontsize=self.plot_settings['label_size'])
+        plt.title(f'Normed quotes for period {self.period}', fontsize=self.plot_settings['title_size'])
+        plt.savefig(os.path.join(self.plot_path, file_name))
         
         df_tick_mapping = pd.DataFrame(self.tick_mapping.values())
         df_tick_mapping.index = self.tick_mapping.keys()
         df_tick_mapping.columns = ['Name']
-        print('\n')
-        print(tabulate(
-                df_tick_mapping, 
-                headers=self.plot_settings['headers'],
-                tablefmt=self.plot_settings['tablefmt']
-                    ))
-        
-        print('\n')
-        print(
-            tabulate(
-                self.rets_stat.rename(self.tick_mapping),
-                headers=self.plot_settings['headers'],
-                tablefmt=self.plot_settings['tablefmt'],
-                floatfmt=self.plot_settings['floatfmt']
-                    ))
-        
+        self.print_table(df_tick_mapping)
+        self.print_table(self.rets_stat)
         if self.pooled_mean_flag:
-            print('\n')
-            print(
-                tabulate(
-                    self.pooled_mean.rename(self.tick_mapping),
-                    headers=self.plot_settings['headers'],
-                    tablefmt=self.plot_settings['tablefmt'],
-                    floatfmt=self.plot_settings['floatfmt']
-                        ))
+            self.print_table(self.pooled_mean)
+

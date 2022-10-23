@@ -26,10 +26,6 @@ port_ticks = ['IWDA.L', 'LIT']
 
 if parameter_config.config['Flags']['use_desc_analysis']:
     desc_analysis = DescriptiveAnalysis(start, end, analysis_ticks, parameter_config)
-    print('\n')
-    print(40*'=')
-    print(f'Analysis Period: {desc_analysis.period}')
-    print(40*'=')
     desc_analysis.remove_data()
     desc_analysis.get_data()
     desc_analysis.ticker_mapping()
