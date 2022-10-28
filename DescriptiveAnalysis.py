@@ -67,7 +67,9 @@ class DescriptiveAnalysis:
             with open(file_name, 'r') as fp:
                 tick_mapping = json.load(fp)
             keys = list(tick_mapping.keys())
-            complement_ticks = list(set(self.ticks)-set(keys))
+            ticks_ext = self.ticks.copy()
+            ticks_ext.append(self.parameters['benchmark'])
+            complement_ticks = list(set(ticks_ext)-set(keys))
             if complement_ticks:
                 for tick in complement_ticks:
                     name = yf.Ticker(tick).info['longName']
@@ -79,6 +81,9 @@ class DescriptiveAnalysis:
             for tick in self.ticks:
                 name = yf.Ticker(tick).info['longName']
                 tick_mapping[tick] = name
+
+            benchmark_name = yf.Ticker(self.parameters['benchmark']).info['longName']
+            tick_mapping[self.parameters['benchmark']] = benchmark_name
             with open(file_name, 'w') as fp:
                 json.dump(tick_mapping, fp)
         self.ticks_file = file_name

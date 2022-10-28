@@ -20,11 +20,13 @@ start = end - DateOffset(years=analysis_year_shift)
 analysis_ticks = ['IWDA.L', 'LIT']
 
 """Settings for Portfolio Analysis"""
-port_end = pd.Timestamp('2022-01-10')
+port_end = pd.Timestamp('2022-10-27')
 port_start = pd.Timestamp('2020-01-01')
 port_ticks = ['IWDA.L', 'LIT']
-custom_weights = [0.2, 0.8]
+use_custom_weights = False
+custom_weights = [0.2, 0.7]
 saving_rate = 300
+
 
 if parameter_config.config['Flags']['use_desc_analysis']:
     desc_analysis = DescriptiveAnalysis(start, end, analysis_ticks, parameter_config)
@@ -44,4 +46,7 @@ else:
 port_analysis = PortfolioAnalysis(port_start, port_end, port_ticks, custom_weights, saving_rate, parameter_config)
 port_analysis.get_returns()
 port_analysis.get_opt_weights()
-port_analysis.port_construction()
+port_analysis.get_aggregated_returns()
+port_analysis.return_analysis()
+port_analysis.portfolio_construction(use_custom_weights)
+port_analysis.visualization()

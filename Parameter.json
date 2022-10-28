@@ -8,7 +8,9 @@
     {
         "min_share_obs": 0.9,
         "moving_avg_days": [252, 42],
-        "benchmark": "URTH"
+        "benchmark": "URTH",
+        "risk_free_rate": 0,
+        "port_type": "MaximumSharpeRatio"
     },
   "Plot_Settings":
     {
