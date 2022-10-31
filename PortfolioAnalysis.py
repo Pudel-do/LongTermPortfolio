@@ -5,6 +5,7 @@ import os
 import yfinance as yf
 import scipy.optimize as sco
 import json
+from tabulate import tabulate
 
 class PortfolioAnalysis:
     def __init__(self, start, end, ticks, custom_weights, saving_rate, parameter_config):
@@ -37,6 +38,18 @@ class PortfolioAnalysis:
         plt.ylabel('Quote', fontsize=self.plot_settings['label_size'])
         plt.title(title, fontsize=self.plot_settings['title_size'])
         plt.savefig(os.path.join(self.plot_path, filename))
+
+    def print_table(self, df):
+        try:
+            df.rename(self.tick_mapping, inplace=True)
+        except:
+            pass
+        print('\n')
+        print(tabulate(df,
+                headers=self.plot_settings['headers'],
+                tablefmt=self.plot_settings['tablefmt'],
+                floatfmt=self.plot_settings['floatfmt']
+                    ))
 
     def get_returns(self):
         print('\n')
@@ -100,6 +113,7 @@ class PortfolioAnalysis:
 
         total_rets = total_rets.join(self.benchmark_rets)
         self.total_rets = total_rets
+        self.weights = weights
 
     def return_analysis(self):
         annualized_rets = self.total_rets.mean()*252
@@ -125,19 +139,37 @@ class PortfolioAnalysis:
         port_quotes.rename(tick_mapping, axis=1, inplace=True)
         self.port_quotes = port_quotes
 
-    def visualization(self):
-        tick_mapping = self.get_data('TickerMapping.json')
+    def visualization(self, use_custom_weights):
+        print(40 * '=')
+        print(f'Portfolio Period: {self.period}')
+        print(40 * '=')
+        self.tick_mapping = self.get_data('TickerMapping.json')
         if not os.path.exists(os.path.join(self.main_path, self.plot_path)):
             os.makedirs(os.path.join(self.main_path, self.plot_path))
 
-        title = f'Portfolio performance for period {self.period}'
+        title = f'Portfolio performance'
         filename = 'PortfolioPerformance.png'
-        plot_data = self.port_quotes.rename(tick_mapping, axis=1)
+        plot_data = self.port_quotes.rename(self.tick_mapping, axis=1)
         self.plot_dataframe(plot_data, title, filename)
 
-        plot_data_hist = self.total_rets.rename(tick_mapping, axis=1)
+        plot_data_hist = self.total_rets.rename(self.tick_mapping, axis=1)
+        title = f'Histogram for period {self.period}'
         plot_data_hist.hist(bins=self.plot_settings['bins'], figsize=tuple(self.plot_settings['figsize']))
         file_name = f'Histogram_{self.start_year}_{self.end_year}'
         plt.savefig(os.path.join(self.plot_path, file_name))
 
-        print('Test')
+        self.rets_statistic.sort_values(by='Sharpe Ratio', inplace=True, ascending=False)
+        self.print_table(self.rets_statistic)
+
+        total_port_costs = pd.DataFrame(index=self.ticks)
+        if use_custom_weights:
+            port_weights = self.weights['CustomWeights']
+            port_weights = np.array(port_weights)
+            port_weights = np.transpose(port_weights)
+        else:
+            port_weights = self.weights[self.parameters['port_type']]
+            port_weights = np.transpose(port_weights)
+        port_costs = np.dot(port_weights, self.saving_rate)
+        total_port_costs['Weights'] = port_weights
+        total_port_costs['Costs'] = port_costs
+        self.print_table(total_port_costs)
